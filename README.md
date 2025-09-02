@@ -28,7 +28,12 @@ Built with **FastAPI (Python)** for the backend and **React** for the frontend.
 ---
 
 ## 📸 Demo Screenshot  
-![Demo Screenshot](demo.png)  
+
+<img width="2448" height="1139" alt="image" src="https://github.com/user-attachments/assets/388df45b-9274-47ea-acb4-95bb2cbfc1e4" />
+
+<img width="1853" height="1085" alt="image" src="https://github.com/user-attachments/assets/0a55aa1b-3af5-4efb-a95b-74d63338bfde" />
+
+
 *(Replace with a screenshot of live call transcription + tone indicator)*  
 
 ---
