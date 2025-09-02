@@ -62,3 +62,16 @@ Demo (UI Preview)
 [🎤 Start Recording]
 [✅ Analyze] → "ደንበኛው እጅግ ደስ ብሎታል" → 🟢 Positive
 
+
+
+👨‍💻 Author
+
+Dawit Shibabaw
+🚀 Data Scientist | AI Researcher | Call Center AI Solutions
+
+
+---
+
+👉 Do you also want me to include **deployment steps** (e.g., Docker + Nginx for production) in this README so it’s ready for real-world call center integration?
+
+
