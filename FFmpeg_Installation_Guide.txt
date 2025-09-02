@@ -1,0 +1,41 @@
+🔧 FFmpeg Installation Guide for Speech-Text Application
+=========================================================
+
+CURRENT STATUS:
+- Your app works with WAV files (no FFmpeg needed)
+- MP3/MP4/M4A/OGG/FLAC files require FFmpeg
+
+INSTALLATION OPTIONS:
+
+📋 OPTION 1: PowerShell Script (Recommended)
+   1. Right-click PowerShell → "Run as Administrator"
+   2. Navigate to your project: cd "C:\Users\Daveee\Desktop\AI\Speech-Text"
+   3. Run: .\install_ffmpeg.ps1
+   4. Restart your terminal/IDE
+   5. Restart your Python backend
+
+📋 OPTION 2: Manual Download
+   1. Go to: https://github.com/BtbN/FFmpeg-Builds/releases
+   2. Download: ffmpeg-master-latest-win64-gpl.zip
+   3. Extract to: C:\ffmpeg\
+   4. Add C:\ffmpeg\bin to your Windows PATH:
+      - Windows key + R → sysdm.cpl → Advanced → Environment Variables
+      - Edit "Path" in System Variables
+      - Add: C:\ffmpeg\bin
+   5. Restart terminal/IDE
+
+📋 OPTION 3: Use Only WAV Files
+   - Convert your audio files to WAV format before uploading
+   - Many free online converters available
+   - Your app will work perfectly with WAV files
+
+🧪 TESTING AFTER INSTALLATION:
+   1. Open new terminal
+   2. Type: ffmpeg -version
+   3. Should show FFmpeg information
+   4. Restart your Python backend
+   5. Upload MP3/MP4 files in your app
+
+🎯 YOUR APP ALREADY WORKS WITH WAV FILES!
+   You can use the application right now with WAV audio files.
+   FFmpeg is only needed for other formats.
