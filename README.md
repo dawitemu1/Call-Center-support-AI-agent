@@ -17,6 +17,35 @@ Built with **FastAPI (Python)** for the backend and **React** for the frontend.
 - 💾 **High-Quality Recording** — Call recordings are saved in `.wav`.
 - 🏢 **Call Center Use Case** — Agents get **instant transcription + tone insight**.
 
+
+
+## 🎯 Call Center Use Cases  
+- **Customer Support** → Detect frustrated customers early and alert supervisors  
+- **Quality Monitoring** → Analyze tone & emotion across calls to measure satisfaction  
+- **Training Agents** → Improve handling skills by reviewing tone + transcripts  
+- **Compliance** → Store transcripts for auditing while analyzing customer emotions  
+
+---
+
+## 📸 Demo Screenshot  
+![Demo Screenshot](demo.png)  
+*(Replace with a screenshot of live call transcription + tone indicator)*  
+
+---
+
+## 🛠️ Installation  
+
+```bash
+# Clone repo
+git clone https://github.com/your-username/amharic-callcenter-support.git
+cd amharic-callcenter-support
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
 ---
 
 ## 🛠️ Tech Stack
