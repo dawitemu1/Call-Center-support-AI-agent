@@ -15,27 +15,27 @@ except Exception:
     os.environ['HF_HUB_OFFLINE'] = '1'
     os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 from contextlib import asynccontextmanager
-import torch
-import librosa
-from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
-from transformers.pipelines import pipeline
+import torch  # type: ignore
+import librosa  # type: ignore
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor  # type: ignore
+from transformers.pipelines import pipeline  # type: ignore
 from typing import Optional, Any, Union, List, Dict, cast
-from pydub import AudioSegment
-import soundfile as sf
+from pydub import AudioSegment  # type: ignore
+import soundfile as sf  # type: ignore
 import io
 import tempfile
 import uuid
 import asyncio
 import json
-import numpy as np
+import numpy as np  # type: ignore
 import queue as queue_module
 import threading
 import time
 from typing import List
-import webrtcvad
+import webrtcvad  # type: ignore
 import pyaudio
 
 @asynccontextmanager
@@ -122,8 +122,8 @@ class ConnectionManager:
         for conn in disconnected:
             self.disconnect(conn)
 
-# Initialize connection manager (will be reassigned after class definition)
-manager = None
+# Initialize connection manager
+manager = ConnectionManager()
 
 class RealTimeAudioProcessor:
     """Handle real-time audio capture and processing"""
@@ -439,6 +439,132 @@ async def health_check():
     }
 
 
+# Enhanced tone detection test endpoint
+@app.post("/test-tone-enhanced")
+async def test_enhanced_tone_detection(text: str):
+    """Enhanced test endpoint with detailed tone analysis breakdown"""
+    try:
+        print(f"\n🧪 Testing enhanced tone detection with text: '{text}'")
+        tone_result, confidence = detect_tone(text)
+        
+        # Get word analysis breakdown with Unicode support
+        text_clean = text.strip().lower()
+        import re
+        words = re.findall(r'[\w\u1200-\u137F]+', text_clean)  # Include Ethiopic Unicode range
+        
+        word_analysis = {
+            "positive_words_found": [],
+            "negative_words_found": [],
+            "neutral_words_found": [],
+            "unrecognized_words": []
+        }
+        
+        for word in words:
+            word_clean = word.strip()
+            word_lower = word_clean.lower()
+            
+            # Check positive words (both English lowercase and Amharic original)
+            if word_lower in [w.lower() for w in positive_words if not any('\u1200' <= char <= '\u137F' for char in w)] or word_clean in [w for w in positive_words if any('\u1200' <= char <= '\u137F' for char in w)]:
+                word_analysis["positive_words_found"].append(word_clean)
+            # Check negative words
+            elif word_lower in [w.lower() for w in negative_words if not any('\u1200' <= char <= '\u137F' for char in w)] or word_clean in [w for w in negative_words if any('\u1200' <= char <= '\u137F' for char in w)]:
+                word_analysis["negative_words_found"].append(word_clean)
+            # Check neutral words
+            elif word_lower in [w.lower() for w in neutral_words if not any('\u1200' <= char <= '\u137F' for char in w)] or word_clean in [w for w in neutral_words if any('\u1200' <= char <= '\u137F' for char in w)]:
+                word_analysis["neutral_words_found"].append(word_clean)
+            else:
+                word_analysis["unrecognized_words"].append(word_clean)
+        
+        # Get AI model output if available
+        ai_analysis = {"available": False}
+        if tone_classifier is not None:
+            try:
+                result = tone_classifier(text.strip())
+                if result:
+                    result_item = list(result)[0] if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)) else result
+                    if isinstance(result_item, dict):
+                        ai_analysis = {
+                            "available": True,
+                            "label": result_item.get('label', 'UNKNOWN'),
+                            "score": result_item.get('score', 0.0)
+                        }
+            except Exception as ai_error:
+                ai_analysis = {"available": False, "error": str(ai_error)}
+        
+        # Get word list statistics
+        stats = get_tone_analysis_stats()
+        
+        return {
+            "input_text": text,
+            "final_result": {
+                "tone": tone_result,
+                "confidence": round(confidence, 3)
+            },
+            "word_analysis": word_analysis,
+            "word_counts": {
+                "positive": len(word_analysis["positive_words_found"]),
+                "negative": len(word_analysis["negative_words_found"]),
+                "neutral": len(word_analysis["neutral_words_found"]),
+                "unrecognized": len(word_analysis["unrecognized_words"])
+            },
+            "ai_model_analysis": ai_analysis,
+            "system_stats": stats,
+            "status": "success"
+        }
+        
+    except Exception as e:
+        return {
+            "input_text": text,
+            "error": str(e),
+            "status": "error"
+        }
+
+# Get tone detection statistics endpoint
+@app.get("/tone-stats")
+async def get_tone_stats():
+    """Get comprehensive statistics about the tone detection system"""
+    try:
+        stats = get_tone_analysis_stats()
+        
+        # Add sample words for each category (including Amharic script)
+        def is_amharic(word):
+            return any('\u1200' <= char <= '\u137F' for char in word)
+        
+        stats["sample_words"] = {
+            "positive": {
+                "english": [w for w in positive_words[:5] if not is_amharic(w)],
+                "amharic": [w for w in positive_words if is_amharic(w)][:5]
+            },
+            "negative": {
+                "english": [w for w in negative_words[:5] if not is_amharic(w)], 
+                "amharic": [w for w in negative_words if is_amharic(w)][:5]
+            },
+            "neutral": {
+                "english": [w for w in neutral_words[:5] if not is_amharic(w)],
+                "amharic": [w for w in neutral_words if is_amharic(w)][:5]
+            }
+        }
+        
+        stats["model_info"] = {
+            "ai_classifier_loaded": tone_classifier is not None,
+            "primary_model": "Enhanced Hybrid AI + Native Amharic Script Analysis",
+            "fallback_mode": "Comprehensive Word Lists with Native Amharic Script Support",
+            "language_support": "English + አማርኛ (Amharic)",
+            "unicode_range": "U+1200-U+137F (Ethiopic)",
+            "features": ["Mixed language detection", "Unicode script support", "Balanced sentiment analysis"]
+        }
+        
+        return {
+            "status": "success",
+            "tone_detection_stats": stats
+        }
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "status": "error"
+        }
+
 # Test tone detection endpoint for debugging
 @app.post("/test-tone")
 async def test_tone_detection(text: str):
@@ -495,7 +621,7 @@ async def detailed_health():
     ffmpeg_path_found = None
     
     try:
-        from pydub.utils import which
+        from pydub.utils import which  # type: ignore
         import subprocess
         
         # Multiple detection methods
@@ -666,21 +792,139 @@ processor = None
 model = None
 tone_classifier = None
 
-# Define sentiment analysis word lists
+# Define comprehensive sentiment analysis word lists for enhanced tone detection
 positive_words = [
-    "happy", "good", "great", "excellent", "amazing", "wonderful", "fantastic", "awesome", "love", "like",
-    "perfect", "best", "brilliant", "outstanding", "superb", "marvelous", "delightful", "pleasant", "joy",
-    "smile", "laugh", "excited", "thrilled", "satisfied", "pleased", "glad", "cheerful", "optimistic",
-    # Amharic positive words (transliterated)
-    "melkam", "konjo", "betam", "des", "tiru", "neta", "astemari", "hulm", "mirt", "selam"
+    # Core positive emotions
+    "happy", "joy", "joyful", "elated", "ecstatic", "blissful", "cheerful", "merry", "glad", "pleased",
+    "delighted", "thrilled", "excited", "enthusiastic", "exhilarated", "euphoric", "jubilant", "upbeat",
+    
+    # Quality indicators
+    "good", "great", "excellent", "amazing", "wonderful", "fantastic", "awesome", "superb", "outstanding",
+    "brilliant", "magnificent", "spectacular", "fabulous", "terrific", "marvelous", "incredible", "remarkable",
+    "perfect", "best", "finest", "superior", "exceptional", "extraordinary", "phenomenal", "impressive",
+    
+    # Affection and approval
+    "love", "adore", "like", "appreciate", "admire", "cherish", "treasure", "value", "respect", "honor",
+    "praise", "commend", "applaud", "celebrate", "congratulate", "compliment", "approve", "endorse",
+    
+    # Pleasant experiences
+    "pleasant", "delightful", "enjoyable", "fun", "entertaining", "amusing", "charming", "lovely",
+    "beautiful", "gorgeous", "stunning", "attractive", "elegant", "graceful", "peaceful", "serene",
+    
+    # Success and achievement
+    "success", "successful", "achieve", "accomplish", "triumph", "victory", "win", "winner", "champion",
+    "excel", "master", "skilled", "talented", "gifted", "capable", "competent", "efficient", "effective",
+    
+    # Positive actions
+    "smile", "laugh", "grin", "beam", "shine", "glow", "sparkle", "dance", "sing", "play",
+    "help", "support", "assist", "encourage", "inspire", "motivate", "boost", "uplift", "comfort",
+    
+    # Optimism and hope
+    "optimistic", "hopeful", "confident", "positive", "bright", "sunny", "radiant", "vibrant",
+    "energetic", "lively", "spirited", "dynamic", "enthusiastic", "passionate", "determined",
+    
+    # Satisfaction
+    "satisfied", "content", "fulfilled", "gratified", "thankful", "grateful", "blessed", "fortunate",
+    "lucky", "relieved", "calm", "relaxed", "comfortable", "cozy", "warm", "safe", "secure",
+    
+    # Amharic positive words (actual Amharic script)
+    "መልካም", "ጥሩ", "ቆንጆ", "በጣም", "ደስ", "ደስተኛ", "ፍቅር", "ወዳጅ", "ሰላም", "ጤና",
+    "ሽሬ", "ጀግና", "ብሩህ", "ቤርሃን", "ህይወት", "ሲምረት", "ፈጣሪ", "እግዚአብሔር", "በእውነት",
+    "ቤካ", "ይቅርታ", "ይመችህ", "ይተባበርካል", "ግብዝ", "ቸዋ", "ተዋሕዶ", "ቅዱስ", "አሜን",
+    "ታላቅ", "አስደሳች", "መንፈሳዊ", "እንኳን", "ደስ", "አላህ", "በረከት", "ምስጋና", "ክብር",
+    "ፈጣሪ", "ኃይል", "ጠንካራ", "አሸናፊ", "ድል", "ተሳክቶ", "ቀላል", "ረዳት", "ታማኝ"
 ]
 
 negative_words = [
-    "bad", "terrible", "awful", "horrible", "hate", "dislike", "worst", "disgusting", "annoying",
-    "frustrated", "angry", "mad", "upset", "sad", "depressed", "disappointed", "worried", "stressed",
-    "painful", "hurt", "broken", "failed", "wrong", "error", "problem", "issue", "trouble", "difficult",
-    # Amharic negative words (transliterated)
-    "kfu", "metfat", "aydelm", "bizu", "hod", "metay", "demam", "kitat", "yelewm", "arif"
+    # Core negative emotions
+    "bad", "terrible", "awful", "horrible", "dreadful", "horrid", "appalling", "atrocious", "disgusting",
+    "revolting", "repulsive", "nasty", "vile", "foul", "abysmal", "deplorable", "contemptible",
+    
+    # Anger and hostility
+    "angry", "mad", "furious", "enraged", "livid", "irate", "incensed", "outraged", "irritated",
+    "annoyed", "aggravated", "frustrated", "exasperated", "hate", "detest", "loathe", "despise",
+    "resent", "bitter", "hostile", "aggressive", "violent", "cruel", "mean", "harsh", "brutal",
+    
+    # Sadness and despair
+    "sad", "unhappy", "miserable", "depressed", "dejected", "despondent", "melancholy", "gloomy",
+    "sorrowful", "mournful", "grief", "heartbroken", "devastated", "crushed", "shattered", "broken",
+    "hopeless", "desperate", "despairing", "suicidal", "crying", "weeping", "tears", "sobbing",
+    
+    # Fear and anxiety
+    "afraid", "scared", "terrified", "frightened", "fearful", "anxious", "worried", "nervous",
+    "stressed", "tense", "panicked", "alarmed", "concerned", "uneasy", "apprehensive", "paranoid",
+    
+    # Disappointment and regret
+    "disappointed", "let down", "discouraged", "disheartened", "dismayed", "disillusioned",
+    "regret", "remorse", "guilt", "shame", "embarrassed", "humiliated", "mortified", "ashamed",
+    
+    # Pain and suffering
+    "hurt", "pain", "painful", "ache", "agony", "torture", "suffering", "misery", "torment",
+    "anguish", "distress", "trauma", "wounded", "injured", "damaged", "harmed", "abused",
+    
+    # Failure and problems
+    "failed", "failure", "lose", "loss", "defeat", "beaten", "worst", "useless", "worthless",
+    "hopeless", "incompetent", "inadequate", "insufficient", "weak", "pathetic", "pitiful",
+    
+    # Problems and difficulties
+    "problem", "issue", "trouble", "difficulty", "challenge", "obstacle", "barrier", "hindrance",
+    "crisis", "disaster", "catastrophe", "emergency", "danger", "threat", "risk", "hazard",
+    
+    # Rejection and dislike
+    "dislike", "hate", "reject", "refuse", "deny", "decline", "oppose", "resist", "protest",
+    "complain", "criticize", "condemn", "blame", "accuse", "fault", "wrong", "mistake", "error",
+    
+    # Amharic negative words (actual Amharic script)
+    "ክሁ", "መትፋት", "አይደለም", "ቢዙ", "ሆድ", "መታይ", "ዲማም", "ኪታት", "የለውም", "አሪፍ",
+    "ተክላይ", "ሽማጌለ", "አይተባበክም", "አይፍለግም", "የበላም", "አይነት", "ሁሉግን", "ሰውየ",
+    "ዲአብሎስ", "መጨሂፍ", "ሁልነት", "አይግባም", "ሰፌሮግና", "እራስ", "አሰራይ", "የባድ",
+    "ምንም", "አክባሪ", "ሰበር", "አክባሪ", "አይደለም", "ተክላይ", "ዝዱት", "አይወድም", "ጥምዓት",
+    "የበላት", "ሰበር", "ዛግት", "አክባሪ", "ጥሙና", "በቆ", "ምንም", "መፍዛት", "ሓኔታ"
+]
+
+neutral_words = [
+    # Descriptive/factual terms
+    "normal", "regular", "usual", "typical", "standard", "ordinary", "common", "average", "medium",
+    "moderate", "neutral", "balanced", "stable", "steady", "consistent", "routine", "conventional",
+    
+    # Factual statements
+    "is", "are", "was", "were", "been", "being", "have", "has", "had", "do", "does", "did",
+    "will", "would", "could", "should", "might", "may", "can", "must", "shall",
+    
+    # Time and sequence
+    "today", "yesterday", "tomorrow", "now", "then", "when", "while", "during", "before",
+    "after", "first", "second", "third", "last", "next", "previous", "current", "recent",
+    
+    # Places and directions
+    "here", "there", "where", "home", "work", "school", "office", "building", "room", "house",
+    "street", "city", "country", "north", "south", "east", "west", "up", "down", "left", "right",
+    
+    # Objects and things
+    "thing", "object", "item", "piece", "part", "section", "area", "place", "space", "room",
+    "table", "chair", "book", "paper", "pen", "computer", "phone", "car", "food", "water",
+    
+    # Actions (neutral)
+    "go", "come", "walk", "run", "sit", "stand", "look", "see", "hear", "listen", "speak",
+    "talk", "say", "tell", "ask", "answer", "read", "write", "work", "study", "learn",
+    
+    # Weather and nature
+    "weather", "rain", "sun", "cloud", "wind", "snow", "hot", "cold", "warm", "cool",
+    "tree", "flower", "grass", "water", "river", "mountain", "sky", "earth", "ground",
+    
+    # Colors and appearance
+    "white", "black", "red", "blue", "green", "yellow", "brown", "gray", "big", "small",
+    "tall", "short", "long", "wide", "narrow", "thick", "thin", "round", "square",
+    
+    # Numbers and quantities
+    "one", "two", "three", "four", "five", "many", "few", "some", "all", "none", "most",
+    "little", "much", "more", "less", "enough", "too", "very", "quite", "rather", "fairly",
+    
+    # Amharic neutral words (actual Amharic script)
+    "ሁሉም", "እና", "ግን", "ይህ", "ያሄ", "ከዛ", "ወሃ", "ሊጅ", "ተት", "ባል", "እና",
+    "በእንድ", "ከእንድ", "ላይ", "ትችት", "ውደ", "ቢዙ", "ቲኒሽ", "ህብረት", "አሁን", "ይህ",
+    "በር", "ዓምተት", "ሰሳት", "ለበስ", "ልጉ", "እርባት", "አረባ", "አማስት", "ሰባት", "ጀንቦት",
+    "ተሩ", "ፍላውር", "ግራስ", "ወሃ", "ውሃ", "ሰልታን", "ላነግሪ", "ወቴ", "ደን", "ሰማይ",
+    "ከተማ", "ሥንታ", "ትምህርት", "ፈር", "መምህር", "ዓሰርት", "ሓምስ", "ሰድስት", "ክርሰኒያን", "መገምጋ"
 ]
 
 # Load models - Using verified working Amharic model with offline fallback
@@ -755,12 +999,14 @@ def load_speech_models():
                     # Initialize classes to avoid unbound warnings
                     processor_class = getattr(__import__('transformers', fromlist=['Wav2Vec2Processor']), 'Wav2Vec2Processor')
                     model_class = getattr(__import__('transformers', fromlist=['Wav2Vec2ForCTC']), 'Wav2Vec2ForCTC')
-                    processor = processor_class.from_pretrained(model_name, local_files_only=True)
-                    model = model_class.from_pretrained(model_name, local_files_only=True)
-                    print(f"✅ Successfully loaded cached base model: {model_name}")
+                    processor = processor_class.from_pretrained(base_model_name, local_files_only=True)
+                    model = model_class.from_pretrained(base_model_name, local_files_only=True)
+                    model_name = base_model_name  # Update global variable
+                    print(f"✅ Successfully loaded cached base model: {base_model_name}")
                     return True
                 except Exception:
                     try:
+                        base_model_name = "facebook/wav2vec2-base-960h"  # Define here for inner scope
                         # Initialize classes to avoid unbound warnings
                         processor_class = getattr(__import__('transformers', fromlist=['Wav2Vec2Processor']), 'Wav2Vec2Processor')
                         model_class = getattr(__import__('transformers', fromlist=['Wav2Vec2ForCTC']), 'Wav2Vec2ForCTC')
@@ -802,7 +1048,7 @@ try:
             "I am very happy today!",
             "This is terrible and awful",  
             "The weather is normal",
-            "አንተ ንኳን እንደተባበሩ እወዳለሁ"  # Amharic for "I'm glad you could join us"
+            "አንተ ብንኝ ጥሩ ናችው፣"  # Amharic: "You are very good/beautiful"
         ]
         
         for sample in test_samples:
@@ -878,76 +1124,169 @@ if tone_classifier is None:
     tone_classifier = DefaultToneClassifier()
     print("🔧 Using default tone classifier")
 
+# Helper function for tone analysis statistics
+def get_tone_analysis_stats():
+    """Get statistics about the tone detection word lists"""
+    def is_amharic(word):
+        """Check if word contains Amharic script (Ethiopic Unicode range)"""
+        return any('\u1200' <= char <= '\u137F' for char in word)
+    
+    return {
+        "positive_words_count": len(positive_words),
+        "negative_words_count": len(negative_words),
+        "neutral_words_count": len(neutral_words),
+        "total_words": len(positive_words) + len(negative_words) + len(neutral_words),
+        "categories": {
+            "positive": {
+                "english_words": len([w for w in positive_words if not is_amharic(w)]),
+                "amharic_words": len([w for w in positive_words if is_amharic(w)])
+            },
+            "negative": {
+                "english_words": len([w for w in negative_words if not is_amharic(w)]),
+                "amharic_words": len([w for w in negative_words if is_amharic(w)])
+            },
+            "neutral": {
+                "english_words": len([w for w in neutral_words if not is_amharic(w)]),
+                "amharic_words": len([w for w in neutral_words if is_amharic(w)])
+            }
+        },
+        "unicode_support": {
+            "ethiopic_range": "U+1200-U+137F",
+            "mixed_language_support": True,
+            "case_sensitivity": "English: case-insensitive, Amharic: case-sensitive"
+        }
+    }
+
 # Utility functions
 def detect_tone(text):
-    """Detect tone/sentiment of text using the loaded tone classifier"""
+    """Enhanced tone/sentiment detection using AI model + comprehensive word-based analysis"""
     try:
         if not text or not text.strip():
             return "Yellow", 0.5  # Neutral for empty text
         
-        # Check if tone_classifier is available
-        if tone_classifier is None:
-            print("⚠️ Tone classifier not loaded, defaulting to neutral")
-            return "Yellow", 0.5
+        text_clean = text.strip().lower()
         
-        # Get prediction from the model
-        result = tone_classifier(text.strip())
-        if not result:
-            return "Yellow", 0.5
+        # Primary: AI model prediction (when available and confident)
+        ai_tone = "Yellow"
+        ai_confidence = 0.5
+        
+        if tone_classifier is not None:
+            try:
+                result = tone_classifier(text.strip())
+                if result:
+                    # Handle different result types (list, generator, etc.)
+                    try:
+                        if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
+                            result_list = list(result) if not isinstance(result, list) else result
+                            if len(result_list) > 0:
+                                result_item = result_list[0]
+                            else:
+                                result_item = None
+                        else:
+                            result_item = result
+                    except (TypeError, IndexError):
+                        result_item = None
+                    
+                    # Extract AI prediction
+                    if result_item and isinstance(result_item, dict):
+                        label = str(result_item.get('label', 'NEUTRAL')).lower()
+                        ai_confidence = float(result_item.get('score', 0.5))
+                        
+                        # Map AI model labels to colors
+                        if any(pos_term in label for pos_term in ["positive", "label_2", "2", "good", "happy"]):
+                            ai_tone = "Green"
+                        elif any(neg_term in label for neg_term in ["negative", "label_0", "0", "bad", "sad"]):
+                            ai_tone = "Red"
+                        else:
+                            ai_tone = "Yellow"
+            except Exception as ai_error:
+                print(f"⚠️ AI tone detection failed: {ai_error}")
+        
+        # Secondary: Word-based analysis for validation and fallback
+        # Enhanced Unicode handling for Amharic script
+        import re
+        # Split on various punctuation and whitespace, preserving Amharic characters
+        words = re.findall(r'[\w\u1200-\u137F]+', text_clean)  # Include Ethiopic Unicode range
+        
+        # Count sentiment indicators with balanced approach
+        positive_count = 0
+        negative_count = 0
+        neutral_count = 0
+        
+        for word in words:
+            # Handle both English (case-insensitive) and Amharic (case-sensitive) words
+            word_clean = word.strip()
+            word_lower = word_clean.lower()  # For English comparison
             
-        # Handle different result types (list, generator, etc.)
-        try:
-            if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
-                try:
-                    result_list = list(result) if not isinstance(result, list) else result
-                    if len(result_list) == 0:
-                        return "Yellow", 0.5
-                    result_item = result_list[0]
-                except (TypeError, ValueError):
-                    return "Yellow", 0.5
-            else:
-                result_item = result
-        except (TypeError, IndexError):
-            return "Yellow", 0.5
+            # Check positive words (both English lowercase and Amharic original)
+            if word_lower in [w.lower() for w in positive_words if w.isascii()] or word_clean in [w for w in positive_words if not w.isascii()]:
+                positive_count += 1
+            # Check negative words (both English lowercase and Amharic original)
+            elif word_lower in [w.lower() for w in negative_words if w.isascii()] or word_clean in [w for w in negative_words if not w.isascii()]:
+                negative_count += 1
+            # Check neutral words (both English lowercase and Amharic original)
+            elif word_lower in [w.lower() for w in neutral_words if w.isascii()] or word_clean in [w for w in neutral_words if not w.isascii()]:
+                neutral_count += 1
+        
+        # Calculate word-based confidence with balanced approach
+        total_sentiment_words = positive_count + negative_count + neutral_count
+        if total_sentiment_words > 0:
+            pos_ratio = positive_count / total_sentiment_words
+            neg_ratio = negative_count / total_sentiment_words
+            neu_ratio = neutral_count / total_sentiment_words
             
-        # Extract label and confidence safely
-        try:
-            if isinstance(result_item, dict):
-                label = str(result_item.get('label', 'NEUTRAL'))
-                confidence = float(result_item.get('score', 0.5))
+            # Determine word-based tone with balanced thresholds
+            if positive_count > negative_count and pos_ratio > 0.3:
+                word_tone = "Green"
+                word_confidence = min(0.95, 0.5 + (pos_ratio * 0.5))
+            elif negative_count > positive_count and neg_ratio > 0.3:
+                word_tone = "Red"
+                word_confidence = min(0.95, 0.5 + (neg_ratio * 0.5))
             else:
-                # Fallback for non-dict results
-                label = 'NEUTRAL'
-                confidence = 0.5
-        except (KeyError, ValueError, TypeError):
-            label = 'NEUTRAL'
-            confidence = 0.5
-        
-        # Map model labels to our color system
-        # AfroXLMR uses different label formats depending on training, so we need comprehensive mapping
-        label_lower = label.lower()
-        
-        # Positive sentiment indicators
-        if any(pos_term in label_lower for pos_term in ["positive", "label_2", "2", "good", "happy"]):
-            tone = "Green"
-        # Negative sentiment indicators
-        elif any(neg_term in label_lower for neg_term in ["negative", "label_0", "0", "bad", "sad"]):
-            tone = "Red"
-        # Neutral or uncertain
+                word_tone = "Yellow"
+                word_confidence = max(0.4, 0.6 - abs(pos_ratio - neg_ratio))
         else:
-            tone = "Yellow"
+            word_tone = "Yellow"
+            word_confidence = 0.4
         
-        # Apply confidence threshold - if confidence is too low, default to neutral
-        # AfroXLMR sometimes gives lower confidence for Amharic, so we use a more lenient threshold
-        if confidence < 0.4:
-            tone = "Yellow"
-            confidence = 0.4
+        # Hybrid decision: Combine AI and word-based analysis
+        final_tone = ai_tone
+        final_confidence = ai_confidence
         
-        print(f"🎯 Tone detection: '{text}' -> {tone} ({confidence:.3f})")
-        return tone, confidence
+        # If AI confidence is low, rely more on word analysis
+        if ai_confidence < 0.6 and total_sentiment_words > 0:
+            # Weight word analysis more heavily when AI is uncertain
+            if word_confidence > ai_confidence:
+                final_tone = word_tone
+                final_confidence = (word_confidence * 0.7) + (ai_confidence * 0.3)
+            else:
+                # Blend both approaches
+                if ai_tone == word_tone:
+                    final_confidence = (ai_confidence + word_confidence) / 2
+                else:
+                    # Conflict resolution: favor word analysis for extreme sentiments
+                    if word_confidence > 0.7:
+                        final_tone = word_tone
+                        final_confidence = word_confidence * 0.8
+                    else:
+                        final_tone = "Yellow"  # Default to neutral on conflict
+                        final_confidence = 0.5
+        
+        # Apply minimum confidence threshold
+        if final_confidence < 0.4:
+            final_tone = "Yellow"
+            final_confidence = 0.4
+        
+        # Ensure confidence doesn't exceed 0.95 for realistic bounds
+        final_confidence = min(0.95, final_confidence)
+        
+        print(f"🎯 Enhanced tone detection: '{text}' -> {final_tone} ({final_confidence:.3f})")
+        print(f"   📊 Analysis: AI={ai_tone}({ai_confidence:.2f}), Words={word_tone}({word_confidence:.2f}), Counts: +{positive_count}/-{negative_count}/={neutral_count}")
+        
+        return final_tone, final_confidence
         
     except Exception as e:
-        print(f"❌ Tone detection error: {e}")
+        print(f"❌ Enhanced tone detection error: {e}")
         return "Yellow", 0.5  # Default to neutral on error
 
 def convert_to_wav(file):
@@ -981,8 +1320,8 @@ def convert_to_wav(file):
         elif ext in [".mp3", ".mp4", ".m4a", ".ogg", ".flac", ".aac", ".wma"]:
             try:
                 # Enhanced FFmpeg detection
-                from pydub import AudioSegment
-                from pydub.utils import which
+                from pydub import AudioSegment  # type: ignore
+                from pydub.utils import which  # type: ignore
                 import subprocess
                 
                 # Multiple methods to find FFmpeg
@@ -1333,11 +1672,11 @@ async def analyze_realtime(file: UploadFile = File(...)):
         }
 
 if __name__ == "__main__":
-    import uvicorn
+    import uvicorn  # type: ignore
     
     # Enhanced FFmpeg detection and setup
     try:
-        from pydub.utils import which
+        from pydub.utils import which  # type: ignore
         import subprocess
         
         # Multiple methods to detect FFmpeg
