@@ -218,10 +218,32 @@ function App() {
   };
 
   const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-    // Clear recording if file is selected
-    setRecordedAudio(null);
-    setAudioUrl(null);
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      // Check file type
+      const fileName = selectedFile.name.toLowerCase();
+      const isVideo = /\.(mp4|avi|mov|mkv|wmv|flv|webm|m4v|3gp|ogv|ts|mts|m2ts)$/i.test(fileName);
+      const isAudio = /\.(wav|mp3|m4a|ogg|flac|aac|wma)$/i.test(fileName);
+      
+      if (!isVideo && !isAudio) {
+        alert('Please select a valid audio or video file format.');
+        e.target.value = '';
+        return;
+      }
+      
+      // Check file size (100MB limit)
+      const maxSize = 100 * 1024 * 1024; // 100MB
+      if (selectedFile.size > maxSize) {
+        alert('File size exceeds 100MB limit. Please select a smaller file.');
+        e.target.value = '';
+        return;
+      }
+      
+      setFile(selectedFile);
+      // Clear recording if file is selected
+      setRecordedAudio(null);
+      setAudioUrl(null);
+    }
   };
 
   const startRecording = async () => {
@@ -593,7 +615,7 @@ function App() {
       <div className="audio-section">
         <input 
           type="file" 
-          accept=".wav,.mp3,.mp4,.m4a,.ogg,.flac,.aac,.wma" 
+          accept=".wav,.mp3,.mp4,.m4a,.ogg,.flac,.aac,.wma,.avi,.mov,.mkv,.wmv,.flv,.webm,.m4v,.3gp,.ogv,.ts,.mts,.m2ts" 
           onChange={handleFileChange}
           disabled={isRecording}
           style={{ width: '100%', maxWidth: '400px' }}

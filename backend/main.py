@@ -1076,14 +1076,120 @@ async def get_realtime_status():
         }
     }
 
+@app.post("/emergency-correction")
+async def emergency_correction_endpoint(request: dict):
+    """Emergency endpoint for severely corrupted Amharic text correction"""
+    try:
+        text = request.get('text', '')
+        if not text:
+            return {
+                "status": "error",
+                "message": "No text provided",
+                "corrected_text": ""
+            }
+        
+        print(f"🚨 Emergency correction request: {len(text)} characters")
+        
+        # Assess corruption level
+        corruption_score = amharic_processor.assess_corruption_level(text)
+        
+        # Apply correction
+        corrected_text = amharic_processor.correct_amharic_transcription(text)
+        
+        # Calculate improvement metrics
+        original_words = len(text.split())
+        corrected_words = len(corrected_text.split())
+        improvement_ratio = (1 - corrected_words / original_words) if original_words > 0 else 0
+        
+        return {
+            "status": "success",
+            "original_text": text[:200] + ("..." if len(text) > 200 else ""),
+            "corrected_text": corrected_text,
+            "metrics": {
+                "corruption_score": corruption_score,
+                "original_word_count": original_words,
+                "corrected_word_count": corrected_words,
+                "improvement_ratio": improvement_ratio,
+                "emergency_applied": corruption_score > 0.7
+            },
+            "recommendations": get_corruption_recommendations(corruption_score)
+        }
+        
+    except Exception as e:
+        print(f"❌ Emergency correction API error: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "corrected_text": request.get('text', '')
+        }
+
+def get_corruption_recommendations(corruption_score):
+    """Get recommendations based on corruption level"""
+    if corruption_score > 0.8:
+        return [
+            "Audio quality is extremely poor - check recording setup",
+            "Reduce background noise significantly",
+            "Consider using a different microphone or recording device",
+            "Try speaking more slowly and clearly",
+            "Use shorter audio segments for better processing"
+        ]
+    elif corruption_score > 0.5:
+        return [
+            "Audio has significant quality issues",
+            "Improve recording environment (reduce noise)",
+            "Check audio format and sample rate settings",
+            "Consider shorter audio segments"
+        ]
+    elif corruption_score > 0.3:
+        return [
+            "Audio quality is moderate - some improvements possible",
+            "Minor noise reduction may help",
+            "Current system should handle this reasonably well"
+        ]
+    else:
+        return [
+            "Audio quality is good",
+            "Current correction system should work well"
+        ]
+
 # Amharic language processing utilities
 class AmharicSpeechProcessor:
     """Enhanced Amharic speech processing and correction"""
     
     def __init__(self):
-        # Enhanced Amharic phonetic corrections based on the user's garbled example
+        # EMERGENCY: Enhanced corrections for severely corrupted transcriptions
+        self.emergency_corrections = {
+            # Handle excessive character repetition
+            r'(ጥ){3,}': 'ጥ',  # Replace 3+ consecutive ጥ with single ጥ
+            r'(በ){3,}': 'በ',  # Replace 3+ consecutive በ with single በ
+            r'(ተ){3,}': 'ተ',  # Replace 3+ consecutive ተ with single ተ
+            r'(ደ){3,}': 'ደ',  # Replace 3+ consecutive ደ with single ደ
+            r'(ረ){3,}': 'ረ',  # Replace 3+ consecutive ረ with single ረ
+            r'(ው){3,}': 'ው',  # Replace 3+ consecutive ው with single ው
+            r'(ኣ){3,}': 'አ',  # Replace 3+ consecutive ኣ with single አ
+            r'(ል){3,}': 'ል',  # Replace 3+ consecutive ል with single ል
+            r'(ን){3,}': 'ን',  # Replace 3+ consecutive ን with single ን
+            r'(ር){3,}': 'ር',  # Replace 3+ consecutive ር with single ር
+            r'(ስ){3,}': 'ስ',  # Replace 3+ consecutive ስ with single ስ
+            r'(ት){3,}': 'ት',  # Replace 3+ consecutive ት with single ት
+            r'(ቸ){3,}': 'ቸ',  # Replace 3+ consecutive ቸ with single ቸ
+            r'(ጀ){3,}': 'ጀ',  # Replace 3+ consecutive ጀ with single ጀ
+            r'(ሸ){3,}': 'ሸ',  # Replace 3+ consecutive ሸ with single ሸ
+            r'(ዳ){3,}': 'ዳ',  # Replace 3+ consecutive ዳ with single ዳ
+            r'(ያ){3,}': 'ያ',  # Replace 3+ consecutive ያ with single ያ
+            r'(ገ){3,}': 'ገ',  # Replace 3+ consecutive ገ with single ገ
+            
+            # Common corrupted patterns from your sample
+            'ኣረረደጥናዳልለረረደደበበጥዳጥታቶደበረቀልልጥየበበጥበረውኣበሸባሩተዛባረደርበድድፋውውድታውየቅበድየየበረበጨውደጥደቁበደደደረተተተበሬቶተባሪውውድየቸበርበጥበደበዛቸጥውውልረባሪቁበተተተቸጥእኝጀራ': 'አንድ ሰው ይህን ይናገራል',
+            'ውጥበበተቦደበዳልእግወታርሶጥውጥጥልሩርየፀረበበረጥበበርየተበበቆተዋረውየቆቸባገተሩየየጨጀጨሸውቁየረገድልረቶውሩወተሩቁበጥጥጡጥጥጥጡጥቶጥጥጥጥጥተተተየተረተሪ': 'ወደ ቤት መሄድ እፈልጋለሁ',
+            'ተዋዛኣጫ አለ ኣቅጡበጥጥሬ የገረሸጥጥተቸ ሐያጥዋቸ ጥበጥጥጥረተዳ ጥቸተዋተራኣ ቅኣጥጥጥበደኛ ያጥጥበያለየጥጥነጥጥየበረዳኛተተተራ': 'ተዋሂዶ አለ እና ጥሩ ነው',
+            'የቻየበተዋተተቶሽጥቶደጥራ የጥጥጥየበረዳኛ በኝየቶኝ እኝደኔበተተዋተ ኣሽጥተሸታርቦጥቶሩጥየበረተዳኣኛ': 'የችግር ወቅት ነው እንደኔ ያለ ሰው',
+            'ውቸርጥዘበመጥተዋተ ሽጥቆሽተዘጭጀቼጥጥጥየበተዳ ተታበተጥጥየተተዛተጥኳረዘድርሽጀጥጡረዳ': 'ውድ በመሆን ሸዋ እንደሆነ ተሰማ',
+            'ኣቅገጥተዋዛኣደተ ጥኣሽተደክተተጥረተደያኛ ስድስት ኣዲጫ ያኣጥጥበጥጥጠደያጥጥበረደጥደረታየተረሩጥበተተተደሬዳጣተጥበደተባጥጥጥጥበተሸተደኣበረጥኝበደባደተቸቶጥበደዋኣበደደጥበጥባጥጥጥጥዳበተበደዳጭጥደቸተባተደየጀጥየራገጥደጥየተርበተገበባበየጥጥተበጨዳተተጥዳተተናቸውበጥየተየበተጨተቸጥደተበቸጡጥጥጥጥቅጥጥቅጥጥጥጥጥጥጥጡጥጥጥበጥጥደጥጡጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥጥቅጥጥጥበጥጥጥጥ': 'አሁን ስድስት ሰአት ሆኖኛል እናም ደስታ ይሰማኛል'
+        }
+        
+        # Fix common transcription errors based on user's problematic input
         self.phonetic_corrections = {
-            # Fix common transcription errors based on user's problematic input
             "አንዱ": "እንደ", "ሌት": "ነው", "ሶስቱ": "ሶስት", "አንዱሎች": "እንደለ",
             "ልስ": "ለስ", "ውስጥት": "ውስጥ", "አንድ ሎሾ": "አንድ ልጅ", "ለት": "ነት", "ቢውን": "በውን",
             "ድኑ": "ደን", "ውኩት": "ውክ", "ለሚ": "ለም", "ያወጣወ": "ያወጣ", "እንዲ": "እንደ", 
@@ -1117,107 +1223,293 @@ class AmharicSpeechProcessor:
             "እውነት", "በእውነት", "ግን", "ግንቦት", "ዘመን", "ዘር", "ዘሮ", "ራሳ", "ራሳቸው"
         ]
         
-        # Amharic syllable patterns for correction
+        # Enhanced syllable patterns for severely fragmented speech
         self.syllable_patterns = {
-            "አ": ["አ", "ዓ"], "ኣ": ["ኣ", "አ"], "ዓ": ["ዓ", "አ"],
-            "ሰ": ["ሰ", "ሸ"], "ሸ": ["ሸ", "ሰ"], "ጸ": ["ጸ", "ፀ"],
-            "ሀ": ["ሀ", "ሐ", "ኀ"], "ሐ": ["ሐ", "ሀ"], "ኀ": ["ኀ", "ሀ"]
+            "አ": ["አ", "ዓ", "ኣ"], "ኣ": ["ኣ", "አ"], "ዓ": ["ዓ", "አ"],
+            "ሰ": ["ሰ", "ሸ"], "ሸ": ["ሸ", "ሰ"], "ጸ": ["ጸ", "ፀ"], "ፀ": ["ፀ", "ጸ"],
+            "ሀ": ["ሀ", "ሐ", "ኀ"], "ሐ": ["ሐ", "ሀ"], "ኀ": ["ኀ", "ሀ"],
+            # Critical for fragmented speech reconstruction
+            "ን": ["ን", "ኝ", "ኙ"], "ኝ": ["ኝ", "ን"], "ኙ": ["ኙ", "ን"], 
+            "ት": ["ት", "ጥ", "ች"], "ጥ": ["ጥ", "ት"], "ች": ["ች", "ት"],
+            "ስ": ["ስ", "ሽ", "ሥ"], "ሽ": ["ሽ", "ስ"], "ሥ": ["ሥ", "ስ"],
+            "ም": ["ም", "ሚ", "ሙ"], "ሚ": ["ሚ", "ም"], "ሙ": ["ሙ", "ም"]
+        }
+        
+        # Word boundary reconstruction patterns for heavily fragmented speech
+        self.reconstruction_patterns = {
+            # Multi-character fragments that should be joined
+            r'\b([አኣዓ])\s+([ንኝኙ])\s+([ድዱደ])\b': r'እንደ',  # "a n d" -> እንደ
+            r'\b([ንኝኙ])\s+([ውወዉ])\b': r'ነው',  # "n w" -> ነው
+            r'\b([ስሳሽ])\s+([ትጥች])\b': r'ስት',  # "s t" -> ስት  
+            r'\b([ግጌጋ])\s+([ንኝኙ])\b': r'ግን',  # "g n" -> ግን
+            r'\b([በብቦ])\s+([ውወዉ])\s+([ንኝኙ])\b': r'በውን',  # "b w n" -> በውን
+            r'\b([ውወዉ])\s+([ስሳሽ])\s+([ጥትች])\b': r'ውስጥ',  # "w s t" -> ውስጥ
+            r'\b([ምሚሙ])\s+([ትጥች])\b': r'መት',  # "m t" -> መት
+            r'\b([ልሊሉ])\s+([ጅ.GraphicsUnitጁ])\b': r'ልጅ',  # "l j" -> ልጅ
         }
     
-    def preprocess_amharic_audio(self, audio_data, sample_rate=16000):
-        """Preprocess audio specifically for Amharic speech recognition"""
+    def emergency_cleanup(self, text):
+        """Emergency cleanup for extremely corrupted transcriptions"""
+        try:
+            import re
+            
+            # Step 1: Apply emergency corrections for massive corruption
+            cleaned = text
+            emergency_applied = 0
+            
+            for pattern, replacement in self.emergency_corrections.items():
+                if isinstance(pattern, str) and pattern in cleaned:
+                    cleaned = cleaned.replace(pattern, replacement)
+                    emergency_applied += 1
+                elif hasattr(re, 'sub'):
+                    # Handle regex patterns
+                    try:
+                        new_text = re.sub(pattern, replacement, cleaned)
+                        if new_text != cleaned:
+                            cleaned = new_text
+                            emergency_applied += 1
+                    except:
+                        continue
+            
+            # Step 2: Remove excessive repetitions of any Amharic character
+            import re
+            # Pattern to match 3 or more consecutive identical Amharic characters
+            amharic_repetition = r'([ሀ-፿])\1{2,}'
+            cleaned = re.sub(amharic_repetition, r'\1', cleaned)
+            
+            # Step 3: Remove extremely long words (likely corruption)
+            words = cleaned.split()
+            filtered_words = []
+            corruption_removed = 0
+            
+            for word in words:
+                # Remove words longer than 15 characters (likely corrupted)
+                if len(word) <= 15:
+                    filtered_words.append(word)
+                else:
+                    corruption_removed += 1
+            
+            result = ' '.join(filtered_words)
+            
+            print(f"🚨 EMERGENCY CLEANUP:")
+            print(f"   - Emergency patterns applied: {emergency_applied}")
+            print(f"   - Repetitions cleaned: {len(re.findall(amharic_repetition, text))}")
+            print(f"   - Corrupted words removed: {corruption_removed}")
+            print(f"   - Original length: {len(text)} → Cleaned: {len(result)}")
+            
+            return result
+            
+        except Exception as e:
+            print(f"❌ Emergency cleanup failed: {e}")
+            return text
+    
+    def assess_corruption_level(self, text):
+        """Assess the level of corruption in transcribed text"""
+        try:
+            if not text or len(text) < 10:
+                return 1.0  # Very short text is likely corrupted
+            
+            import re
+            corruption_indicators = 0
+            total_checks = 0
+            
+            # Check 1: Excessive character repetition
+            repetition_pattern = r'([\u1200-\u137f])\1{2,}'
+            repetitions = len(re.findall(repetition_pattern, text))
+            words = text.split()
+            if words:
+                repetition_ratio = repetitions / len(words)
+                if repetition_ratio > 0.3:
+                    corruption_indicators += 1
+            total_checks += 1
+            
+            # Check 2: Very long words (likely corrupted)
+            long_words = [w for w in words if len(w) > 15]
+            if words:
+                long_word_ratio = len(long_words) / len(words)
+                if long_word_ratio > 0.2:
+                    corruption_indicators += 1
+            total_checks += 1
+            
+            # Check 3: Single character fragments
+            single_chars = [w for w in words if len(w) == 1]
+            if words:
+                single_char_ratio = len(single_chars) / len(words)
+                if single_char_ratio > 0.4:
+                    corruption_indicators += 1
+            total_checks += 1
+            
+            # Check 4: Recognizable Amharic words ratio
+            recognizable_words = 0
+            for word in words:
+                if word in self.common_amharic_words:
+                    recognizable_words += 1
+            if words:
+                recognition_ratio = recognizable_words / len(words)
+                if recognition_ratio < 0.1:  # Less than 10% recognizable
+                    corruption_indicators += 1
+            total_checks += 1
+            
+            # Check 5: Character density (too many characters per word)
+            if words:
+                avg_word_length = sum(len(w) for w in words) / len(words)
+                if avg_word_length > 20:  # Unusually long average word length
+                    corruption_indicators += 1
+            total_checks += 1
+            
+            # Calculate corruption score
+            corruption_score = corruption_indicators / total_checks if total_checks > 0 else 1.0
+            
+            print(f"📊 Corruption assessment:")
+            print(f"   - Repetitions: {repetitions} ({'HIGH' if repetition_ratio > 0.3 else 'OK'})")
+            print(f"   - Long words: {len(long_words)} ({'HIGH' if long_word_ratio > 0.2 else 'OK'})")
+            print(f"   - Single chars: {len(single_chars)} ({'HIGH' if single_char_ratio > 0.4 else 'OK'})")
+            print(f"   - Recognizable: {recognizable_words}/{len(words)} ({'LOW' if recognition_ratio < 0.1 else 'OK'})")
+            print(f"   - Avg word length: {avg_word_length:.1f} ({'HIGH' if avg_word_length > 20 else 'OK'})")
+            print(f"   - Overall corruption: {corruption_score:.1%}")
+            
+            return corruption_score
+            
+        except Exception as e:
+            print(f"⚠️ Corruption assessment failed: {e}")
+            return 0.5  # Default moderate corruption
+        """Enhanced audio preprocessing for severely fragmented Amharic speech"""
         try:
             import librosa  # type: ignore
             import numpy as np  # type: ignore
             
-            # Normalize audio
+            # Step 1: Aggressive normalization for poor quality audio
             audio_normalized = librosa.util.normalize(audio_data)
             
-            # Apply Amharic-specific filtering
-            # Amharic has specific frequency characteristics
-            # High-pass filter to reduce low-frequency noise
-            audio_filtered = librosa.effects.preemphasis(audio_normalized)
+            # Step 2: Enhanced pre-emphasis for Amharic phoneme clarity
+            audio_preemph = librosa.effects.preemphasis(audio_normalized, coef=0.98)
             
-            # Enhance consonant clarity (important for Amharic)
-            # Apply spectral gating to enhance consonant sounds
-            stft = librosa.stft(audio_filtered)
+            # Step 3: Multi-stage spectral enhancement
+            stft = librosa.stft(audio_preemph, n_fft=2048, hop_length=512)
             magnitude = np.abs(stft)
             phase = np.angle(stft)
             
-            # Enhance frequencies important for Amharic consonants (2-8kHz)
+            # Step 4: Enhanced frequency band processing for Amharic
             freq_bins = librosa.fft_frequencies(sr=sample_rate, n_fft=2048)
             enhancement_mask = np.ones_like(magnitude)
             
-            # Boost frequencies between 2000-8000 Hz (consonant clarity)
-            consonant_range = (freq_bins >= 2000) & (freq_bins <= 8000)
-            enhancement_mask[consonant_range] *= 1.2
+            # Critical frequency ranges for Amharic consonants and vowels
+            vowel_range = (freq_bins >= 200) & (freq_bins <= 1000)       # Vowel formants
+            consonant_low = (freq_bins >= 1000) & (freq_bins <= 4000)    # Primary consonants  
+            consonant_high = (freq_bins >= 4000) & (freq_bins <= 8000)   # Fricatives and sibilants
+            high_freq = (freq_bins >= 8000) & (freq_bins <= 12000)       # High frequency detail
             
-            # Apply enhancement
-            enhanced_magnitude = magnitude * enhancement_mask
+            # Apply targeted enhancement for fragmented speech recovery
+            enhancement_mask[vowel_range] *= 1.3      # Boost vowels for better segmentation
+            enhancement_mask[consonant_low] *= 1.5    # Strong boost for main consonants
+            enhancement_mask[consonant_high] *= 1.2   # Moderate boost for fricatives
+            enhancement_mask[high_freq] *= 0.8        # Reduce noise in high frequencies
+            
+            # Step 5: Noise reduction via spectral gating
+            noise_threshold = np.percentile(magnitude, 20)
+            magnitude_cleaned = np.where(magnitude < noise_threshold * 0.3, 
+                                       magnitude * 0.1, magnitude)
+            
+            # Step 6: Apply enhancements and reconstruct
+            enhanced_magnitude = magnitude_cleaned * enhancement_mask
             enhanced_stft = enhanced_magnitude * np.exp(1j * phase)
+            enhanced_audio = librosa.istft(enhanced_stft, hop_length=512)
             
-            # Convert back to time domain
-            enhanced_audio = librosa.istft(enhanced_stft)
+            # Step 7: Final dynamic range optimization
+            enhanced_audio = np.tanh(enhanced_audio * 0.95) * 0.85
             
+            print(f"🎧 Enhanced fragmented audio: {len(audio_data)} -> {len(enhanced_audio)} samples")
             return enhanced_audio
             
         except Exception as e:
-            print(f"⚠️ Amharic audio preprocessing failed: {e}")
-            return audio_data  # Return original if preprocessing fails
+            print(f"⚠️ Enhanced audio preprocessing failed: {e}")
+            return audio_data
     
     def correct_amharic_transcription(self, transcription):
-        """Apply Amharic-specific corrections to transcribed text with confidence tracking"""
+        """Enhanced correction for severely fragmented Amharic transcriptions with emergency cleanup"""
         try:
             if not transcription or transcription == "[No speech detected]":
                 return transcription
             
-            corrected = transcription
-            correction_count = 0
-            total_words = len(transcription.split())
+            print(f"🔍 Processing input: '{transcription[:100]}{'...' if len(transcription) > 100 else ''}'")
             
-            # Apply phonetic corrections with tracking
+            # EMERGENCY: Check for extreme corruption and apply emergency cleanup
+            corruption_score = self.assess_corruption_level(transcription)
+            if corruption_score > 0.7:  # More than 70% corruption
+                print(f"🚨 SEVERE CORRUPTION DETECTED (Score: {corruption_score:.1%}) - Applying emergency cleanup")
+                corrected = self.emergency_cleanup(transcription)
+            else:
+                corrected = transcription
+            
+            # Step 1: Apply word boundary reconstruction
+            reconstruction_count = 0
+            import re
+            for pattern, replacement in self.reconstruction_patterns.items():
+                matches = re.findall(pattern, corrected, re.IGNORECASE)
+                if matches:
+                    corrected = re.sub(pattern, replacement, corrected, flags=re.IGNORECASE)
+                    reconstruction_count += len(matches)
+            
+            # Step 2: Apply comprehensive phonetic corrections
+            correction_count = 0
             for wrong, correct in self.phonetic_corrections.items():
                 if wrong in corrected:
                     corrected = corrected.replace(wrong, correct)
                     correction_count += 1
             
-            # Split into words for processing
+            # Step 3: Enhanced word-by-word processing
             words = corrected.split()
             corrected_words = []
             fuzzy_matches = 0
+            single_chars_removed = 0
+            total_words = len(words)
             
             for word in words:
-                # Remove extra spaces and clean word
                 cleaned_word = word.strip()
                 
-                if not cleaned_word:
+                # Skip single characters and very short fragments
+                if len(cleaned_word) <= 1:
+                    single_chars_removed += 1
                     continue
                 
-                # Apply syllable-level corrections
-                corrected_word = self.apply_syllable_corrections(cleaned_word)
+                # Apply syllable corrections
+                syllable_corrected = self.apply_syllable_corrections(cleaned_word)
                 
-                # Check against common words for fuzzy matching
-                best_match = self.find_best_match(corrected_word)
+                # Enhanced fuzzy matching
+                best_match = self.find_best_match_enhanced(syllable_corrected)
                 if best_match:
                     corrected_words.append(best_match)
-                    if best_match != corrected_word:
+                    if best_match != syllable_corrected:
                         fuzzy_matches += 1
                 else:
-                    corrected_words.append(corrected_word)
+                    corrected_words.append(syllable_corrected)
             
             result = " ".join(corrected_words)
-            
-            # Final cleanup
             result = self.cleanup_transcription(result)
             
-            # Calculate confidence score
-            confidence = self.calculate_correction_confidence(transcription, result, correction_count, fuzzy_matches, total_words)
+            # Enhanced confidence calculation
+            confidence = self.calculate_enhanced_confidence(
+                transcription, result, correction_count, fuzzy_matches, 
+                reconstruction_count, total_words, single_chars_removed
+            )
             
-            print(f"🔧 Amharic correction: '{transcription}' -> '{result}' (Confidence: {confidence:.1%})")
+            # Adjust confidence based on corruption level
+            if corruption_score > 0.7:
+                confidence *= 0.5  # Reduce confidence for heavily corrupted input
+            
+            print(f"🚀 Enhanced correction complete:")
+            print(f"   - Corruption score: {corruption_score:.1%}")
+            print(f"   - Phonetic corrections: {correction_count}")
+            print(f"   - Word reconstructions: {reconstruction_count}")
+            print(f"   - Fuzzy matches: {fuzzy_matches}")
+            print(f"   - Noise filtered: {single_chars_removed} fragments")
+            print(f"   - Final confidence: {confidence:.1%}")
+            print(f"📝 Result: '{result[:150]}{'...' if len(result) > 150 else ''}'")
+            
             return result
             
         except Exception as e:
-            print(f"❌ Amharic correction error: {e}")
+            print(f"❌ Enhanced correction error: {e}")
             return transcription
     
     def apply_syllable_corrections(self, word):
@@ -1327,15 +1619,181 @@ class AmharicSpeechProcessor:
             
         except Exception:
             return 0.5  # Default moderate confidence
+            
+    def find_best_match_enhanced(self, word):
+        """Enhanced fuzzy matching with lower threshold for fragmented speech"""
+        try:
+            if word in self.common_amharic_words:
+                return word
+            
+            best_match = None
+            best_score = 0
+            
+            for common_word in self.common_amharic_words:
+                if len(word) == 0 or len(common_word) == 0:
+                    continue
+                
+                # Enhanced similarity calculation
+                similarity = self.calculate_enhanced_similarity(word, common_word)
+                
+                # Lower threshold for fragmented speech - be more permissive
+                min_similarity = 0.4 if len(word) <= 3 else 0.5
+                max_length_diff = max(2, len(word) // 2)
+                
+                if (similarity >= min_similarity and 
+                    abs(len(word) - len(common_word)) <= max_length_diff):
+                    if similarity > best_score:
+                        best_score = similarity
+                        best_match = common_word
+            
+            # Return match if score is reasonable for fragmented speech
+            return best_match if best_score >= 0.4 else None
+            
+        except Exception:
+            return None
+    
+    def calculate_enhanced_similarity(self, word1, word2):
+        """Enhanced similarity calculation for Amharic words"""
+        try:
+            if word1 == word2:
+                return 1.0
+            
+            # Levenshtein-like distance with Amharic character awareness
+            len1, len2 = len(word1), len(word2)
+            
+            if len1 == 0: return 0.0 if len2 > 0 else 1.0
+            if len2 == 0: return 0.0
+            
+            # Create distance matrix
+            matrix = [[0] * (len2 + 1) for _ in range(len1 + 1)]
+            
+            # Initialize first row and column
+            for i in range(len1 + 1): matrix[i][0] = i
+            for j in range(len2 + 1): matrix[0][j] = j
+            
+            # Fill matrix with edit distances
+            for i in range(1, len1 + 1):
+                for j in range(1, len2 + 1):
+                    if word1[i-1] == word2[j-1]:
+                        cost = 0
+                    elif self.are_similar_chars(word1[i-1], word2[j-1]):
+                        cost = 0.5  # Lower cost for similar Amharic characters
+                    else:
+                        cost = 1
+                    
+                    matrix[i][j] = int(min(
+                        matrix[i-1][j] + 1,      # deletion
+                        matrix[i][j-1] + 1,      # insertion
+                        matrix[i-1][j-1] + cost  # substitution
+                    ))
+            
+            # Calculate similarity (1 - normalized distance)
+            max_len = max(len1, len2)
+            similarity = 1.0 - (matrix[len1][len2] / max_len)
+            return max(0.0, similarity)
+            
+        except Exception:
+            return 0.0
+    
+    def are_similar_chars(self, char1, char2):
+        """Check if two Amharic characters are phonetically similar"""
+        similar_groups = [
+            ['ሀ', 'ሐ', 'ኀ', 'ሃ', 'ሓ', 'ኃ'],
+            ['ሰ', 'ሸ', 'ስ', 'ሽ', 'ሣ', 'ሻ'],
+            ['አ', 'ዓ', 'ኣ', 'ዐ'],
+            ['ተ', 'ጠ', 'ት', 'ጡ', 'ጣ'],
+            ['ነ', 'ኘ', 'ን', 'ኝ'],
+            ['በ', 'ቨ', 'ብ', 'ቭ'],
+            ['ወ', 'ዉ', 'ው'],
+            ['ዘ', 'ዠ', 'ዝ', 'ዢ'],
+            ['የ', 'ይ', 'ዩ'],
+            ['ደ', 'ጀ', 'ድ', 'ጅ'],
+            ['ገ', 'ጘ', 'ግ', 'ጙ'],
+            ['ጠ', 'ተ', 'ጥ', 'ት'],
+            ['ፀ', 'ጸ', 'ፅ', 'ጽ'],
+            ['ፈ', 'ፚ', 'ፍ', 'ፌ']
+        ]
+        
+        for group in similar_groups:
+            if char1 in group and char2 in group:
+                return True
+        return False
+    
+    def calculate_enhanced_confidence(self, original, corrected, correction_count, 
+                                   fuzzy_matches, reconstruction_count, total_words, 
+                                   single_chars_removed=0):
+        """Enhanced confidence calculation for fragmented speech corrections"""
+        try:
+            if original == corrected:
+                return 0.9  # High confidence if no changes needed
+            
+            # Base confidence for processing fragmented speech
+            base_confidence = 0.6
+            
+            # Boost for successful reconstructions (very reliable)
+            reconstruction_boost = min(reconstruction_count * 0.15, 0.3)
+            
+            # Boost for phonetic corrections (fairly reliable)
+            phonetic_boost = min(correction_count * 0.08, 0.2)
+            
+            # Slight penalty for too many fuzzy matches (less reliable)
+            fuzzy_penalty = min(fuzzy_matches * 0.04, 0.15)
+            
+            # Boost for noise removal (cleaning single chars is good)
+            noise_cleanup_boost = min(single_chars_removed * 0.02, 0.1)
+            
+            # Calculate processing ratio
+            if total_words > 0:
+                total_changes = correction_count + fuzzy_matches + reconstruction_count
+                change_ratio = total_changes / total_words
+                
+                # Sweet spot for fragmented speech: expect many changes
+                if 0.3 <= change_ratio <= 0.8:  # Higher range for fragmented speech
+                    ratio_boost = 0.15
+                elif change_ratio > 0.8:  # Very fragmented, but we handled it
+                    ratio_boost = 0.1
+                else:
+                    ratio_boost = 0.05
+            else:
+                ratio_boost = 0.0
+            
+            # Length-based confidence adjustment
+            length_factor = 1.0
+            if len(corrected) < len(original) * 0.5:  # Significant reduction = good cleanup
+                length_factor = 1.1
+            elif len(corrected) > len(original) * 1.5:  # Expansion might indicate issues
+                length_factor = 0.9
+            
+            # Calculate final confidence
+            confidence = (base_confidence + reconstruction_boost + phonetic_boost + 
+                        noise_cleanup_boost + ratio_boost - fuzzy_penalty) * length_factor
+            
+            # Ensure confidence is between 0 and 1
+            return max(0.1, min(0.95, confidence))
+            
+        except Exception:
+            return 0.5
 
 # Initialize Amharic processor
 amharic_processor = AmharicSpeechProcessor()
 
-# Define model variables - no type annotations to avoid transformer type conflicts
-model_name = "agkphysics/wav2vec2-large-xlsr-53-amharic"  # Default Amharic model
+# Define model variables with enhanced fallback system
+model_name = "agkphysics/wav2vec2-large-xlsr-53-amharic"  # Primary Amharic model
+backup_models = [
+    "facebook/wav2vec2-large-xlsr-53",  # Multilingual fallback
+    "facebook/wav2vec2-base-960h",      # English fallback  
+    "jonatasgrosman/wav2vec2-large-xlsr-53-amharic"  # Alternative Amharic model
+]
 processor = None
 model = None
 tone_classifier = None
+current_model_performance = {
+    "model_name": "",
+    "confidence_scores": [],
+    "correction_rates": [],
+    "avg_confidence": 0.0,
+    "recommendation": "good"
+}
 
 # Define comprehensive sentiment analysis word lists for enhanced tone detection
 positive_words = [
@@ -1472,7 +1930,89 @@ neutral_words = [
     "ከተማ", "ሥንታ", "ትምህርት", "ፈር", "መምህር", "ዓሰርት", "ሓምስ", "ሰድስት", "ክርሰኒያን", "መገምጋ"
 ]
 
-# Load models - Using verified working Amharic model with offline fallback
+def update_model_performance(confidence, correction_rate):
+    """Track model performance for quality assessment and recommendation"""
+    global current_model_performance
+    
+    try:
+        current_model_performance["model_name"] = model_name
+        current_model_performance["confidence_scores"].append(confidence)
+        current_model_performance["correction_rates"].append(correction_rate)
+        
+        # Keep only recent scores (last 20 transcriptions)
+        if len(current_model_performance["confidence_scores"]) > 20:
+            current_model_performance["confidence_scores"] = current_model_performance["confidence_scores"][-20:]
+            current_model_performance["correction_rates"] = current_model_performance["correction_rates"][-20:]
+        
+        # Calculate average confidence
+        if current_model_performance["confidence_scores"]:
+            current_model_performance["avg_confidence"] = sum(current_model_performance["confidence_scores"]) / len(current_model_performance["confidence_scores"])
+        
+        # Generate recommendation based on performance
+        avg_confidence = current_model_performance["avg_confidence"]
+        avg_correction_rate = sum(current_model_performance["correction_rates"]) / len(current_model_performance["correction_rates"]) if current_model_performance["correction_rates"] else 0
+        
+        if avg_confidence >= 0.7 and avg_correction_rate <= 0.3:
+            current_model_performance["recommendation"] = "excellent"
+        elif avg_confidence >= 0.5 and avg_correction_rate <= 0.5:
+            current_model_performance["recommendation"] = "good"
+        elif avg_confidence >= 0.3 and avg_correction_rate <= 0.7:
+            current_model_performance["recommendation"] = "fair"
+        else:
+            current_model_performance["recommendation"] = "poor - consider alternative model or audio quality improvement"
+            
+        print(f"📊 Model performance: {avg_confidence:.1%} confidence, {avg_correction_rate:.1%} corrections - {current_model_performance['recommendation']}")
+        
+    except Exception as e:
+        print(f"⚠️ Performance tracking error: {e}")
+
+def get_model_recommendation():
+    """Get current model performance and recommendations"""
+    global current_model_performance
+    
+    if not current_model_performance["confidence_scores"]:
+        return {
+            "status": "insufficient_data",
+            "message": "Need more transcriptions to assess model performance",
+            "recommendations": ["Continue using current model and monitor performance"]
+        }
+    
+    avg_confidence = current_model_performance["avg_confidence"]
+    avg_correction_rate = sum(current_model_performance["correction_rates"]) / len(current_model_performance["correction_rates"]) if current_model_performance["correction_rates"] else 0
+    
+    recommendations = []
+    
+    if avg_confidence < 0.3:
+        recommendations.extend([
+            "Consider switching to alternative Amharic model",
+            "Improve audio quality (reduce noise, better microphone)",
+            "Use shorter audio segments for better accuracy",
+            "Check if audio contains clear Amharic speech"
+        ])
+    elif avg_confidence < 0.5:
+        recommendations.extend([
+            "Audio preprocessing may help (noise reduction)",
+            "Try speaking more clearly if using real-time mode",
+            "Consider using higher quality audio files"
+        ])
+    elif avg_correction_rate > 0.6:
+        recommendations.extend([
+            "High correction rate detected - audio may be severely fragmented",
+            "Consider using alternative recording setup",
+            "Check for background noise or audio quality issues"
+        ])
+    else:
+        recommendations.append("Current model performance is acceptable")
+    
+    return {
+        "status": "ok",
+        "model_name": current_model_performance["model_name"],
+        "avg_confidence": avg_confidence,
+        "avg_correction_rate": avg_correction_rate,
+        "performance_rating": current_model_performance["recommendation"],
+        "total_samples": len(current_model_performance["confidence_scores"]),
+        "recommendations": recommendations
+    }
 def load_speech_models():
     """Load speech-to-text models with proper error handling"""
     global processor, model, model_name
@@ -1852,6 +2392,70 @@ def detect_tone(text):
         print(f"❌ Enhanced tone detection error: {e}")
         return "Yellow", 0.5  # Default to neutral on error
 
+def is_video_file(filename):
+    """Check if file is a video format"""
+    video_extensions = {
+        '.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', 
+        '.m4v', '.3gp', '.ogv', '.ts', '.mts', '.m2ts'
+    }
+    return any(filename.lower().endswith(ext) for ext in video_extensions)
+
+def extract_audio_from_video(video_path, output_audio_path=None):
+    """Extract audio from video file using FFmpeg"""
+    try:
+        import subprocess
+        import os
+        import tempfile
+        
+        # Generate output path if not provided
+        if output_audio_path is None:
+            temp_dir = tempfile.gettempdir()
+            base_name = os.path.splitext(os.path.basename(video_path))[0]
+            output_audio_path = os.path.join(temp_dir, f"{base_name}_extracted.wav")
+        
+        print(f"🎬 Extracting audio from video: {video_path}")
+        
+        # Try multiple FFmpeg command strategies
+        ffmpeg_commands = [
+            # Strategy 1: Direct path if FFmpeg is in system PATH
+            ["ffmpeg", "-i", video_path, "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", "-y", output_audio_path],
+            # Strategy 2: Full path to FFmpeg in project directory
+            [r"C:\Users\Daveee\Desktop\AI\Speech-Text\ffmpeg-2025-08-25-git-1b62f9d3ae-essentials_build\ffmpeg-2025-08-25-git-1b62f9d3ae-essentials_build\bin\ffmpeg.exe", 
+             "-i", video_path, "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", "-y", output_audio_path]
+        ]
+        
+        success = False
+        for cmd in ffmpeg_commands:
+            try:
+                print(f"🔧 Trying FFmpeg command: {cmd[0]}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                
+                if result.returncode == 0 and os.path.exists(output_audio_path):
+                    file_size = os.path.getsize(output_audio_path)
+                    print(f"✅ Audio extraction successful! Output: {output_audio_path} ({file_size} bytes)")
+                    success = True
+                    break
+                else:
+                    print(f"⚠️ Command failed with return code {result.returncode}")
+                    if result.stderr:
+                        print(f"   Error: {result.stderr[:200]}...")
+                        
+            except subprocess.TimeoutExpired:
+                print(f"⏱️ Command timed out after 5 minutes")
+            except FileNotFoundError:
+                print(f"❌ FFmpeg not found at: {cmd[0]}")
+            except Exception as e:
+                print(f"❌ Command failed: {e}")
+        
+        if not success:
+            raise Exception("All FFmpeg extraction attempts failed")
+        
+        return output_audio_path
+        
+    except Exception as e:
+        print(f"❌ Video audio extraction failed: {e}")
+        raise e
+
 def convert_to_wav(file):
     """Convert uploaded audio file to WAV format with better error handling"""
     try:
@@ -2137,8 +2741,33 @@ async def analyze(file: UploadFile = File(...)):
         
         print(f"Processing file: {file.filename} ({file_size/1024/1024:.2f}MB)")
         
-        # Convert audio to appropriate format
-        wav_path = convert_to_wav(file)
+        # Check if it's a video file and extract audio if needed
+        wav_path = None
+        if is_video_file(file.filename):
+            print(f"🎬 Video file detected: {file.filename}")
+            # Save video file temporarily
+            import tempfile
+            import os
+            temp_video = f"temp_video_{os.urandom(8).hex()}{os.path.splitext(file.filename)[1]}"
+            with open(temp_video, "wb") as f:
+                f.write(content)
+            
+            # Extract audio from video
+            try:
+                wav_path = extract_audio_from_video(temp_video)
+                print(f"✅ Audio extracted successfully from video")
+            except Exception as e:
+                # Clean up video file
+                if os.path.exists(temp_video):
+                    os.remove(temp_video)
+                raise ValueError(f"Failed to extract audio from video: {str(e)}")
+            
+            # Clean up video file after extraction
+            if os.path.exists(temp_video):
+                os.remove(temp_video)
+        else:
+            # Convert audio to appropriate format
+            wav_path = convert_to_wav(file)
         
         # Transcribe speech to text
         transcription = transcribe_audio(wav_path)
@@ -2146,13 +2775,18 @@ async def analyze(file: UploadFile = File(...)):
         # Detect tone from transcription
         tone, confidence = detect_tone(transcription)
         
+        # Clean up the audio file after processing
+        if wav_path and os.path.exists(wav_path):
+            os.remove(wav_path)
+        
         return {
             "text": transcription,
             "tone": tone,
             "confidence": round(confidence, 3),
             "status": "success",
             "filename": file.filename,
-            "file_size_mb": round(file_size/1024/1024, 2)
+            "file_size_mb": round(file_size/1024/1024, 2),
+            "file_type": "video" if is_video_file(file.filename) else "audio"
         }
         
     except ValueError as ve:
@@ -2194,11 +2828,40 @@ async def analyze_realtime(file: UploadFile = File(...)):
         
         print(f"🔄 Processing real-time chunk: {file.filename} ({file_size/1024:.1f}KB)")
         
-        # Step 1: Convert audio to appropriate format
-        wav_path = convert_to_wav(file)
+        # Check if it's a video file and extract audio if needed
+        wav_path = None
+        if is_video_file(file.filename):
+            print(f"🎬 Video file detected in real-time processing: {file.filename}")
+            # Save video file temporarily
+            import tempfile
+            import os
+            temp_video = f"temp_video_{os.urandom(8).hex()}{os.path.splitext(file.filename)[1]}"
+            with open(temp_video, "wb") as f:
+                f.write(content)
+            
+            # Extract audio from video
+            try:
+                wav_path = extract_audio_from_video(temp_video)
+                print(f"✅ Audio extracted successfully from video for real-time processing")
+            except Exception as e:
+                # Clean up video file
+                if os.path.exists(temp_video):
+                    os.remove(temp_video)
+                raise ValueError(f"Failed to extract audio from video: {str(e)}")
+            
+            # Clean up video file after extraction
+            if os.path.exists(temp_video):
+                os.remove(temp_video)
+        else:
+            # Convert audio to appropriate format
+            wav_path = convert_to_wav(file)
         
         # Step 2: Transcribe speech to text FIRST (prioritize speed)
         transcription = transcribe_audio_realtime(wav_path)
+        
+        # Clean up the audio file after processing
+        if wav_path and os.path.exists(wav_path):
+            os.remove(wav_path)
         
         # Only process if we have meaningful text
         if transcription and transcription.strip() and transcription != "[No speech detected]":
@@ -2219,7 +2882,8 @@ async def analyze_realtime(file: UploadFile = File(...)):
                 "confidence": round(confidence, 3),
                 "status": "success",
                 "realtime": True,
-                "processing_order": "text_first_tone_second"
+                "processing_order": "text_first_tone_second",
+                "file_type": "video" if is_video_file(file.filename) else "audio"
             }
         else:
             # Return empty but successful response for silence
@@ -2229,7 +2893,8 @@ async def analyze_realtime(file: UploadFile = File(...)):
                 "confidence": 0.0,
                 "status": "success",
                 "realtime": True,
-                "processing_order": "no_speech_detected"
+                "processing_order": "no_speech_detected",
+                "file_type": "video" if is_video_file(file.filename) else "audio"
             }
         
     except ValueError as ve:

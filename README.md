@@ -12,12 +12,11 @@ Built with **FastAPI (Python)** for the backend and **React** for the frontend.
   - 🟡 Neutral  
   - 🔴 Negative
 - 📡 **WebSocket Integration** — Enables **live captions** while recording or during a call.
-- 🎧 **File Upload Support** — Supports audio formats:
-  - `WAV`, `MP3`, `MP4`, `M4A`, `OGG`, `FLAC`, `AAC`, `WMA`
+- 🎧 **File Upload Support** — Supports audio and video formats:
+  - **Audio**: `WAV`, `MP3`, `MP4`, `M4A`, `OGG`, `FLAC`, `AAC`, `WMA`
+  - **Video**: `MP4`, `AVI`, `MOV`, `MKV`, `WMV`, `FLV`, `WebM`, `M4V`, `3GP`, `OGV`, `TS`, `MTS`, `M2TS`
 - 💾 **High-Quality Recording** — Call recordings are saved in `.wav`.
 - 🏢 **Call Center Use Case** — Agents get **instant transcription + tone insight**.
-
-
 
 ## 🎯 Call Center Use Cases  
 - **Customer Support** → Detect frustrated customers early and alert supervisors  
@@ -51,7 +50,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
----
+```
 
 ## 🛠️ Tech Stack
 - **Backend** → [FastAPI](https://fastapi.tiangolo.com/) (Python)  
@@ -79,33 +78,43 @@ amharic-speech-tone/
 │   └── package.json      # Frontend dependencies
 │
 │── README.md             # Project documentation
+```
 
-⚡ Installation
-🔹 Backend (FastAPI)
+## ⚡ Installation
+### 🔧 Backend (FastAPI)
+```bash
 cd backend
 python -m venv venv
 source venv/bin/activate   # (Linux/Mac)
 venv\Scripts\activate      # (Windows)
 pip install -r requirements.txt
 uvicorn main:app --reload
+```
 
+### 🌐 Frontend (React)
+```bash
+cd frontend
+npm install
+npm start
+```
 
-Demo (UI Preview)
+## 📹 Video Processing
+The system now supports processing Amharic video files:
+- Upload any supported video format through the file input
+- The system automatically extracts audio and processes it
+- Tone detection and transcription work the same as with audio files
+- See [VIDEO_PROCESSING.md](VIDEO_PROCESSING.md) for detailed technical information
 
+## Demo (UI Preview)
 
 [🎤 Start Recording]
 [✅ Analyze] → "ደንበኛው እጅግ ደስ ብሎታል" → 🟢 Positive
 
-
-
-👨‍💻 Author
+## 👨‍💻 Author
 
 Dawit Shibabaw
 🚀 Data Scientist | AI Researcher | Call Center AI Solutions
 
-
 ---
 
-👉 Do you also want me to include **deployment steps** (e.g., Docker + Nginx for production) in this README so it’s ready for real-world call center integration?
-
-
+👉 Do you also want me to include **deployment steps** (e.g., Docker + Nginx for production) in this README so it's ready for real-world call center integration?
