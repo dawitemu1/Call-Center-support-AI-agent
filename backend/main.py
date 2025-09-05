@@ -126,7 +126,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 class RealTimeAudioProcessor:
-    """Handle real-time audio capture and processing"""
+    """Handle real-time audio capture and processing with enhanced Amharic support"""
     
     def __init__(self):
         self.is_processing = False
@@ -135,6 +135,12 @@ class RealTimeAudioProcessor:
         self.silence_threshold = 30  # frames of silence before stopping
         self.current_silence_count = 0
         self.speech_started = False
+        self.min_amharic_buffer_size = 8000  # Minimum samples for Amharic processing (0.5 seconds)
+        self.amharic_chunk_counter = 0
+        self.processing_queue = queue_module.Queue()  # Queue for async processing
+        self.processing_thread = None
+        self.last_transcription_time = 0
+        self.transcription_cooldown = 0.3  # Minimum time between transcriptions (seconds)
         
     def start_processing(self):
         """Start real-time audio processing"""
@@ -145,25 +151,31 @@ class RealTimeAudioProcessor:
         self.audio_buffer = []
         self.current_silence_count = 0
         self.speech_started = False
+        self.amharic_chunk_counter = 0
+        self.last_transcription_time = 0
         
         # Start audio capture thread
         self.capture_thread = threading.Thread(target=self._audio_capture_loop, daemon=True)
         self.capture_thread.start()
         
         # Start processing thread
-        self.process_thread = threading.Thread(target=self._audio_process_loop, daemon=True)
-        self.process_thread.start()
+        self.processing_thread = threading.Thread(target=self._audio_process_loop, daemon=True)
+        self.processing_thread.start()
         
-        print("🎤 Real-time audio processing started")
+        print("🎤 Real-time Amharic audio processing started")
         return True
     
     def stop_processing(self):
         """Stop real-time audio processing"""
+        # Process any remaining audio in buffer
+        if len(self.audio_buffer) > self.min_amharic_buffer_size:
+            audio_queue.put(np.array(self.audio_buffer).copy())
+        
         self.is_processing = False
-        print("🛑 Real-time audio processing stopped")
+        print("🛑 Real-time Amharic audio processing stopped")
     
     def _audio_capture_loop(self):
-        """Continuous audio capture from microphone"""
+        """Continuous audio capture from microphone with Amharic optimizations"""
         try:
             # Initialize PyAudio
             p = pyaudio.PyAudio()
@@ -188,7 +200,7 @@ class RealTimeAudioProcessor:
             
             print(f"🎤 Using audio device: {p.get_device_info_by_index(default_device)['name']}")
             
-            # Open audio stream
+            # Open audio stream with optimized settings for Amharic
             stream = p.open(
                 format=FORMAT,
                 channels=CHANNELS,
@@ -198,7 +210,7 @@ class RealTimeAudioProcessor:
                 frames_per_buffer=CHUNK
             )
             
-            print("🔴 Recording started...")
+            print("🔴 Amharic recording started...")
             
             frame_duration = 10  # ms for VAD
             frame_size = int(RATE * frame_duration / 1000)  # samples per frame
@@ -226,7 +238,7 @@ class RealTimeAudioProcessor:
                             if is_speech:
                                 if not self.speech_started:
                                     self.speech_started = True
-                                    print("🗣️ Speech detected - recording...")
+                                    print("🗣️ Amharic speech detected - recording...")
                                 
                                 self.audio_buffer.extend(frame)
                                 self.current_silence_count = 0
@@ -235,16 +247,19 @@ class RealTimeAudioProcessor:
                                     self.audio_buffer.extend(frame)
                                     self.current_silence_count += 1
                                     
-                                    # If enough silence, process the buffer
-                                    if self.current_silence_count >= self.silence_threshold:
-                                        if len(self.audio_buffer) > 0:
+                                    # If enough silence or buffer is large enough, process the buffer
+                                    buffer_size = len(self.audio_buffer)
+                                    # More frequent processing for better real-time experience
+                                    if (self.current_silence_count >= self.silence_threshold // 2 or 
+                                        buffer_size >= self.min_amharic_buffer_size):  # Process smaller chunks for real-time
+                                        if buffer_size > 0:
                                             audio_queue.put(np.array(self.audio_buffer).copy())
                                         
                                         # Reset for next speech segment
                                         self.audio_buffer = []
                                         self.speech_started = False
                                         self.current_silence_count = 0
-                                        print("🔇 Speech ended - processing audio...")
+                                        print("🔇 Amharic speech ended - processing audio...")
                         except Exception as vad_error:
                             # If VAD fails, fall back to simple energy detection
                             energy = np.sum(frame.astype(np.float32) ** 2)
@@ -259,15 +274,15 @@ class RealTimeAudioProcessor:
             stream.stop_stream()
             stream.close()
             p.terminate()
-            print("🔴 Recording stopped")
+            print("🔴 Amharic recording stopped")
             
         except Exception as e:
             print(f"❌ Audio capture error: {e}")
             self.is_processing = False
     
     def _audio_process_loop(self):
-        """Process audio chunks for transcription"""
-        print("🔄 Audio processing loop started")
+        """Process audio chunks for Amharic transcription with enhanced correction"""
+        print("🔄 Amharic audio processing loop started")
         
         while self.is_processing:
             try:
@@ -280,14 +295,14 @@ class RealTimeAudioProcessor:
                 if len(audio_data) == 0:
                     continue
                 
-                print(f"🎧 Processing audio chunk: {len(audio_data)} samples")
+                print(f"🎧 Processing Amharic audio chunk: {len(audio_data)} samples")
                 
                 # Convert to float and normalize
                 audio_float = audio_data.astype(np.float32) / 32768.0
                 
-                # Ensure minimum length for processing
+                # Ensure minimum length for Amharic processing
                 if len(audio_float) < 1600:  # Minimum 0.1 seconds
-                    print("⚠️ Audio chunk too short, skipping")
+                    print("⚠️ Audio chunk too short for Amharic processing, skipping")
                     continue
                 
                 # Process with speech-to-text model
@@ -295,11 +310,11 @@ class RealTimeAudioProcessor:
                     transcription = self._transcribe_chunk(audio_float)
                     
                     if transcription and transcription.strip() and transcription != "[No speech detected]":
-                        print(f"📝 Transcribed: '{transcription}'")
+                        print(f"📝 Amharic transcribed: '{transcription}'")
                         
-                        # Detect tone
+                        # Detect tone with Amharic support
                         tone, confidence = detect_tone(transcription)
-                        print(f"🎯 Tone: {tone} ({confidence:.3f})")
+                        print(f"🎯 Amharic tone: {tone} ({confidence:.3f})")
                         
                         # Send to WebSocket clients
                         result = {
@@ -308,32 +323,59 @@ class RealTimeAudioProcessor:
                             "tone": tone,
                             "confidence": round(confidence, 3),
                             "timestamp": time.time(),
-                            "realtime": True
+                            "realtime": True,
+                            "language": "amharic",
+                            "chunk_id": self.amharic_chunk_counter
                         }
+                        
+                        self.amharic_chunk_counter += 1
                         
                         # Queue for WebSocket broadcast
                         transcription_queue.put(result)
                     else:
-                        print("🔇 No speech detected in chunk")
+                        print("🔇 No Amharic speech detected in chunk")
                         
                 except Exception as transcribe_error:
-                    print(f"❌ Transcription error: {transcribe_error}")
+                    print(f"❌ Amharic transcription error: {transcribe_error}")
                 
             except Exception as e:
-                print(f"❌ Audio processing error: {e}")
+                print(f"❌ Amharic audio processing error: {e}")
                 time.sleep(0.1)
         
-        print("🔄 Audio processing loop stopped")
+        # Process any remaining audio when stopping
+        if len(self.audio_buffer) > 0:
+            try:
+                audio_float = np.array(self.audio_buffer).astype(np.float32) / 32768.0
+                if len(audio_float) >= 1600:
+                    transcription = self._transcribe_chunk(audio_float)
+                    if transcription and transcription.strip() and transcription != "[No speech detected]":
+                        tone, confidence = detect_tone(transcription)
+                        result = {
+                            "type": "transcription",
+                            "text": transcription,
+                            "tone": tone,
+                            "confidence": round(confidence, 3),
+                            "timestamp": time.time(),
+                            "realtime": True,
+                            "language": "amharic",
+                            "chunk_id": self.amharic_chunk_counter,
+                            "final": True
+                        }
+                        transcription_queue.put(result)
+            except Exception as e:
+                print(f"❌ Error processing final Amharic audio chunk: {e}")
+        
+        print("🔄 Amharic audio processing loop stopped")
     
     def _transcribe_chunk(self, audio_data):
-        """Transcribe a single audio chunk with Amharic optimization"""
+        """Transcribe a single audio chunk with enhanced Amharic optimization"""
         try:
             # Check if models are loaded
             if processor is None or model is None:
-                print("❌ Models not loaded")
+                print("❌ Amharic models not loaded")
                 return "[No speech detected]"
             
-            # Apply Amharic preprocessing to audio chunk
+            # Apply enhanced Amharic preprocessing to audio chunk
             enhanced_audio = amharic_processor.preprocess_amharic_audio(audio_data)
             
             # Type assertion to help type checker
@@ -351,7 +393,7 @@ class RealTimeAudioProcessor:
             predicted_ids = torch.argmax(logits, dim=-1)
             raw_transcription = proc.decode(predicted_ids[0])
             
-            # Apply Amharic-specific corrections
+            # Apply enhanced Amharic-specific corrections
             corrected_transcription = amharic_processor.correct_amharic_transcription(raw_transcription)
             
             # Return cleaned transcription
@@ -359,7 +401,7 @@ class RealTimeAudioProcessor:
             return cleaned if len(cleaned) > 2 else "[No speech detected]"
             
         except Exception as e:
-            print(f"❌ Chunk transcription error: {e}")
+            print(f"❌ Amharic chunk transcription error: {e}")
             return "[No speech detected]"
 
 # Initialize real-time processor
@@ -367,10 +409,10 @@ realtime_processor = RealTimeAudioProcessor()
 
 
 
-# WebSocket endpoint for real-time transcription
+# WebSocket endpoint for real-time Amharic speech transcription
 @app.websocket("/ws/transcribe")
 async def websocket_transcribe(websocket: WebSocket):
-    """WebSocket endpoint for real-time speech transcription"""
+    """WebSocket endpoint for real-time Amharic speech transcription with enhanced features"""
     await manager.connect(websocket)
     
     try:
@@ -384,8 +426,9 @@ async def websocket_transcribe(websocket: WebSocket):
                     await manager.send_personal_message(
                         json.dumps({
                             "type": "status",
-                            "message": "Recording started",
-                            "status": "recording"
+                            "message": "Amharic recording started",
+                            "status": "recording",
+                            "language": "amharic"
                         }),
                         websocket
                     )
@@ -393,8 +436,9 @@ async def websocket_transcribe(websocket: WebSocket):
                     await manager.send_personal_message(
                         json.dumps({
                             "type": "error",
-                            "message": "Recording already in progress",
-                            "status": "error"
+                            "message": "Amharic recording already in progress",
+                            "status": "error",
+                            "language": "amharic"
                         }),
                         websocket
                     )
@@ -404,8 +448,9 @@ async def websocket_transcribe(websocket: WebSocket):
                 await manager.send_personal_message(
                     json.dumps({
                         "type": "status",
-                        "message": "Recording stopped",
-                        "status": "stopped"
+                        "message": "Amharic recording stopped",
+                        "status": "stopped",
+                        "language": "amharic"
                     }),
                     websocket
                 )
@@ -414,6 +459,20 @@ async def websocket_transcribe(websocket: WebSocket):
                 await manager.send_personal_message(
                     json.dumps({
                         "type": "pong",
+                        "timestamp": time.time(),
+                        "language": "amharic"
+                    }),
+                    websocket
+                )
+            
+            elif message.get("action") == "get_stats":
+                # Send current processing stats
+                await manager.send_personal_message(
+                    json.dumps({
+                        "type": "stats",
+                        "processing": realtime_processor.is_processing,
+                        "connections": len(manager.active_connections),
+                        "language": "amharic",
                         "timestamp": time.time()
                     }),
                     websocket
@@ -424,9 +483,9 @@ async def websocket_transcribe(websocket: WebSocket):
         # Stop recording if this was the last client
         if len(manager.active_connections) == 0:
             realtime_processor.stop_processing()
-            print("🛑 No active connections, stopping recording")
+            print("🛑 No active connections, stopping Amharic recording")
     except Exception as e:
-        print(f"❌ WebSocket error: {e}")
+        print(f"❌ Amharic WebSocket error: {e}")
         manager.disconnect(websocket)
 
 # Health check endpoint

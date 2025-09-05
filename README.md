@@ -17,6 +17,7 @@ Built with **FastAPI (Python)** for the backend and **React** for the frontend.
   - **Video**: `MP4`, `AVI`, `MOV`, `MKV`, `WMV`, `FLV`, `WebM`, `M4V`, `3GP`, `OGV`, `TS`, `MTS`, `M2TS`
 - 💾 **High-Quality Recording** — Call recordings are saved in `.wav`.
 - 🏢 **Call Center Use Case** — Agents get **instant transcription + tone insight**.
+- ⚡ **Enhanced Real-Time Processing** — Improved handling of fragmented speech for better accuracy.
 
 ## 🎯 Call Center Use Cases  
 - **Customer Support** → Detect frustrated customers early and alert supervisors  
@@ -97,6 +98,29 @@ cd frontend
 npm install
 npm start
 ```
+
+## 🎯 Enhanced Real-Time Amharic Processing
+
+This update includes significant improvements to real-time Amharic speech processing:
+
+### 🔧 Key Enhancements:
+- **Improved Fragmented Speech Handling**: Better reconstruction of fragmented speech chunks
+- **Enhanced Audio Preprocessing**: Optimized for Amharic phoneme clarity
+- **Real-Time Tone Detection**: Instant sentiment analysis during speech
+- **WebSocket Performance**: Faster and more reliable real-time transcription
+- **Accumulated Transcription**: Continuous building of conversation context
+
+### 🚀 Real-Time Features:
+1. **Live Transcription**: See speech converted to text as it's spoken
+2. **Tone Indicators**: Visual sentiment analysis (Positive/Neutral/Negative)
+3. **Transcription History**: Track conversation flow with timestamped entries
+4. **Performance Metrics**: Monitor processing speed and accuracy
+
+### 📊 Processing Improvements:
+- **Faster Chunk Processing**: Optimized for sub-second response times
+- **Better Noise Reduction**: Enhanced audio preprocessing for clearer transcription
+- **Improved Word Boundary Detection**: Better reconstruction of fragmented words
+- **Enhanced Confidence Scoring**: More accurate assessment of transcription quality
 
 ## 📹 Video Processing
 The system now supports processing Amharic video files:

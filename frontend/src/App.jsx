@@ -26,6 +26,7 @@ function App() {
   const recordingChunksRef = useRef([]);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const transcriptionBufferRef = useRef(''); // Buffer for accumulating transcriptions
 
   // WebSocket connection for real-time transcription
   const connectWebSocket = () => {
@@ -52,7 +53,12 @@ function App() {
           const data = JSON.parse(event.data);
           
           if (data.type === 'transcription') {
-            setLiveTranscription(data.text);
+            // Accumulate transcriptions for better flow
+            const newTranscription = data.text.trim();
+            if (newTranscription) {
+              transcriptionBufferRef.current += ' ' + newTranscription;
+              setLiveTranscription(transcriptionBufferRef.current.trim());
+            }
             
             // Add to history with timestamp and tone
             const timestamp = new Date().toLocaleTimeString();
@@ -108,6 +114,7 @@ function App() {
     
     setWsConnected(false);
     setConnectionAttempts(0);
+    transcriptionBufferRef.current = ''; // Clear buffer
   };
   
 
@@ -136,7 +143,15 @@ function App() {
     if (tone === "Red") return "#F44336";
     return "#666666";
   };
-
+  
+  // Get tone label
+  const getToneLabel = (tone) => {
+    if (tone === "Green") return "😊 Positive";
+    if (tone === "Yellow") return "😐 Neutral";
+    if (tone === "Red") return "😞 Negative";
+    return "Unknown";
+  };
+  
   // Test microphone access
   const testMicrophone = async () => {
     try {
@@ -276,6 +291,10 @@ function App() {
       setMicrophoneStatus('available');
       streamRef.current = stream;
       
+      // Reset transcription buffer
+      transcriptionBufferRef.current = '';
+      setLiveTranscription('');
+      
       // Start WebSocket connection for live transcription (Zoom-like)
       if (!wsRef.current) {
         connectWebSocket();
@@ -309,8 +328,6 @@ function App() {
       
       setIsRecording(true);
       setRecordingTime(0);
-      
-      // Removed auto-fullscreen as requested
       
       // Start timer
       intervalRef.current = setInterval(() => {
@@ -388,6 +405,7 @@ function App() {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: 'stop_recording' }));
       setLiveTranscription('');
+      transcriptionBufferRef.current = ''; // Clear buffer
     }
     
     if (audioContextRef.current && recordingChunksRef.current.length > 0) {
@@ -428,7 +446,6 @@ function App() {
     
     setIsRecording(false);
     
-    // Removed auto-exit fullscreen since auto-fullscreen is disabled
   };
   
   const clearRecording = () => {
@@ -440,6 +457,7 @@ function App() {
     // Clear live transcription data
     setLiveTranscription('');
     setTranscriptionHistory([]);
+    transcriptionBufferRef.current = ''; // Clear buffer
     
     // Disconnect WebSocket
     disconnectWebSocket();
@@ -609,8 +627,6 @@ function App() {
       <div className="App" style={{ display: isFullscreen ? 'none' : 'flex' }}>
       <h1>Amharic Speech-to-Text & Tone Detection</h1>
       
-
-      
       {/* File Upload Section */}
       <div className="audio-section">
         <input 
@@ -657,9 +673,6 @@ function App() {
               >
                 🎤 Start Recording (with Live Transcription)
               </button>
-              
-              {/* Manual fullscreen toggle */}
-              {/* Removed fullscreen button as requested */}
             </>
           ) : (
             <>
@@ -679,8 +692,6 @@ function App() {
               >
                 ⏹️ Stop Recording
               </button>
-              
-              {/* Fullscreen toggle during recording - Removed as requested */}
             </>
           )}
           
