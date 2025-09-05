@@ -1313,6 +1313,17 @@ class AmharicSpeechProcessor:
             corruption_indicators = 0
             total_checks = 0
             
+            # Initialize variables
+            repetition_ratio = 0
+            long_word_ratio = 0
+            single_char_ratio = 0
+            recognition_ratio = 0
+            avg_word_length = 0
+            repetitions = 0
+            long_words = []
+            single_chars = []
+            recognizable_words = 0
+            
             # Check 1: Excessive character repetition
             repetition_pattern = r'([\u1200-\u137f])\1{2,}'
             repetitions = len(re.findall(repetition_pattern, text))
@@ -1373,6 +1384,8 @@ class AmharicSpeechProcessor:
         except Exception as e:
             print(f"⚠️ Corruption assessment failed: {e}")
             return 0.5  # Default moderate corruption
+    
+    def preprocess_amharic_audio(self, audio_data, sample_rate=16000):
         """Enhanced audio preprocessing for severely fragmented Amharic speech"""
         try:
             import librosa  # type: ignore
@@ -2404,7 +2417,6 @@ def extract_audio_from_video(video_path, output_audio_path=None):
     """Extract audio from video file using FFmpeg"""
     try:
         import subprocess
-        import os
         import tempfile
         
         # Generate output path if not provided
@@ -2747,7 +2759,6 @@ async def analyze(file: UploadFile = File(...)):
             print(f"🎬 Video file detected: {file.filename}")
             # Save video file temporarily
             import tempfile
-            import os
             temp_video = f"temp_video_{os.urandom(8).hex()}{os.path.splitext(file.filename)[1]}"
             with open(temp_video, "wb") as f:
                 f.write(content)
@@ -2834,7 +2845,6 @@ async def analyze_realtime(file: UploadFile = File(...)):
             print(f"🎬 Video file detected in real-time processing: {file.filename}")
             # Save video file temporarily
             import tempfile
-            import os
             temp_video = f"temp_video_{os.urandom(8).hex()}{os.path.splitext(file.filename)[1]}"
             with open(temp_video, "wb") as f:
                 f.write(content)
